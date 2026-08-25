@@ -2,11 +2,11 @@ from enum import Enum
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
-class plainTier(str, Enum):
+class PlanTier(str, Enum):
     FREE = "FREE"
     PRO = "PRO"
 
-class settings(BaseSettings):
+class Settings(BaseSettings):
     PROJECT_NAME: str = "DentalCare AI Metering Engine"
     POSTGRES_USER: str = "dental_admin"
     POSTGRES_PASSWORD: str = "dental-secret_pass"
@@ -35,20 +35,20 @@ class settings(BaseSettings):
         )
     model_config = SettingsConfigDict(enc_file=".env", extra="ignore")
 
-    settings = settings
+settings = Settings()
 
-    def calculate_cost_microcents(
-            standard_input_tokens: int,
-            cached_input_tokens: int,
-            output_tokens: int,
-            reasoning_tokens: int,
-    ) -> int:
-        """Computes exact total request cost in micro-cents using 64-bit integer arithmetic."""
-        return(
-            (standard_input_tokens * settings.RATE_STANDARD_INPUTS_MICROCENTS)
-            +(cached_input_tokens * settings.RATE_CACHED_INPUT_MICROCENTS)
-            +(output_tokens * settings.RATE_OUTPUT_MICROCENTS)
-            +(reasoning_tokens * settings.RATE_REASONING_MICROCENTS)
-        )
+def calculate_cost_microcents(
+        standard_input_tokens: int,
+        cached_input_tokens: int,
+        output_tokens: int,
+        reasoning_tokens: int,
+) -> int:
+    """Computes exact total request cost in micro-cents using 64-bit integer arithmetic."""
+    return(
+        (standard_input_tokens * settings.RATE_STANDARD_INPUTS_MICROCENTS)
+        +(cached_input_tokens * settings.RATE_CACHED_INPUT_MICROCENTS)
+        +(output_tokens * settings.RATE_OUTPUT_MICROCENTS)
+        +(reasoning_tokens * settings.RATE_REASONING_MICROCENTS)
+    )
     
         

@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime, timezone
-from typing import any
+from typing import Any
 from sqlalchemy import BigInteger, Boolean, DateTime, ForeignKey, Index, Integer, String, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -29,11 +29,11 @@ class Tenant(Base):
         "Subscription", back_populates="tenant", uselist=False, cascade="all, delete-orphan"
     )
     usage_events: Mapped[list["UsageEvent"]] = relationship(
-        "UsageEvent", block_populates="tenant", cascade="all, delete-orphan"
+        "UsageEvent", back_populates="tenant", cascade="all, delete-orphan"
     )
 
 class Subscription(Base):
-    __tablename__ = "subscription"
+    __tablename__ = "subscriptions"
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
@@ -96,13 +96,13 @@ class UsageEvent(Base):
     standard_input_tokens: Mapped[int] = mapped_column(
         Integer, default=0, nullable=False
     )
-    cached_input_tokens: Mapped[int] = map(
+    cached_input_tokens: Mapped[int] = mapped_column(
         Integer, default=0, nullable=False
     )
     output_tokens: Mapped[int] = mapped_column(
         Integer, default=0, nullable=False
     )
-    reasoning_tokens: Mapped[int] = map(
+    reasoning_tokens: Mapped[int] = mapped_column(
         Integer, default=0, nullable=False
     )
     total_tokens: Mapped[int] = mapped_column(
@@ -111,7 +111,7 @@ class UsageEvent(Base):
     cost_microcents: Mapped[int] = mapped_column(
         BigInteger, default=0, nullable=False
     )
-    metadata_json: Mapped[dict[str, any] | None] = mapped_column(
+    metadata_json: Mapped[dict[str, Any] | None] = mapped_column(
         JSONB, nullable=False
     )
     created_at: Mapped[datetime] = mapped_column(
@@ -125,7 +125,7 @@ class UsageEvent(Base):
         Index("idx_usage_events_tenant_created", "tenant_id", "created_at"),
     )
 
-class webhookLog(Base):
+class WebhookLog(Base):
     __tablename__ = "webhook_logs"
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
@@ -139,4 +139,4 @@ class webhookLog(Base):
     processed_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, nullable=False
     )
-    payload: Mapped[dict[str, any]] = mapped_column(JSONB, nullable=False)
+    payload: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
