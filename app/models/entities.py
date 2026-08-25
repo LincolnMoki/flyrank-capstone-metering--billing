@@ -139,4 +139,4 @@ class webhookLog(Base):
     processed_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, nullable=False
     )
-    payload: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    payload: Mapped[dict[str, any]] = mapped_column(JSONB, nullable=False)
