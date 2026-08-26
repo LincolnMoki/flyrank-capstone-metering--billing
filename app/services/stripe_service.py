@@ -72,15 +72,16 @@ class StripeService:
         event_type = event.get("type")
         data_object = event.get("data", {}).get("object", {})
 
-        if not event_id or event_type:
+        if not event_id or not event_type:
             return False, "Invalid event Payload missing id or type"
 
         # Deduplication check via WebhookLog
-        stmt = select(WebhookLog).where(WebhookLog.event_id == event_id)
+        stmt = select(WebhookLog).where(WebhookLog.stripe_event_id == event_id)
         res = await self.db.execute(stmt)
         existing_log = res.scalar_one_or_none()
         if existing_log:
             return True, "Duplicate webhook event ignored"
+        
         # Handle upgrade Events
         if event_type == "checkout.session.completed":
             metadata = data_object.get("metadata", {})
@@ -94,30 +95,30 @@ class StripeService:
                 except ValueError:
                     return False, f"Invalid tenant_id format: {tenant_id_str}"
 
-            elif event_type == "customer.subscription.update":
-                metadata = data_object.get("metadata", {})
-                tenant_id_str = metadata.get("tenant_id")
-                new_plan = metadata.get("plan_id", "pro")
-                status = metadata.get("status")
+        elif event_type in ("customer.subscription.updated", "customer.subscription.update"):
+            metadata = data_object.get("metadata", {})
+            tenant_id_str = metadata.get("tenant_id")
+            new_plan = metadata.get("plan_id", "pro")
+            status = metadata.get("status")
 
-                if tenant_id_str and status == "active":
-                    try:
-                        tenant_id = uuid.UUID(tenant_id_str)
-                        await self._upgrade_tenant_plan(tenant_id, new_plan, data_object)
-                    except ValueError:
-                        return False, f"Invalid tenant_id format: {tenant_id_str}"
+            if tenant_id_str and status == "active":
+                try:
+                    tenant_id = uuid.UUID(tenant_id_str)
+                    await self._upgrade_tenant_plan(tenant_id, new_plan, data_object)
+                except ValueError:
+                    return False, f"Invalid tenant_id format: {tenant_id_str}"
 
 
-            # log events as processed
-            log = WebhookLog(
-                event_id=event_id,
-                event_type=event_type,
-                payload=event,
-            )
-            self.db.add(log)
-            await self.db.commit()
+        # log events as processed
+        log = WebhookLog(
+            stripe_event_id=event_id,
+            event_type=event_type,
+            payload=event,
+        )
+        self.db.add(log)
+        await self.db.commit()
 
-            return True, "Webhook processed successfully"
+        return True, "Webhook processed successfully"
 
     async def _upgrade_tenant_plan(
         self, tenant_id: uuid.UUID, new_plan: str, stripe_data: Dict[str, Any]
@@ -125,8 +126,17 @@ class StripeService:
         """
         Updates Tenant Plan and Quota & syncs subscription record.
         """
+        tenant_stmt = select(Tenant).where(Tenant.id == tenant_id)
+        tenant_res = await self.db.execute(tenant_stmt)
+        tenant = tenant_res.scalar_one_or_none()
+
+        if not tenant:
+            return
+
+        quota = PLAN_QUOTAS.get(new_plan.lower(), 100_000)
+        
         tenant.plan = new_plan
-        tenant.token_quota = PLAN_QUOTAS.get(new_plan.lower(), 100_000)
+        tenant.token_quota = quota
 
         sub_stmt = select(Subscription).where(Subscription.tenant_id == tenant_id)
         sub_res = await self.db.execute(sub_stmt)
@@ -136,8 +146,9 @@ class StripeService:
         stripe_cust_id = stripe_data.get("customer")
 
         if subscription:
-            subscription.plan  = new_plan
+            subscription.plan_tier  = new_plan
             subscription.status = "active"
+            subscription.api_token_quota = quota
             if stripe_sub_id:
                 subscription.stripe_subscription_id =  str(stripe_sub_id)
             if stripe_cust_id:
@@ -146,10 +157,10 @@ class StripeService:
         else:
             subscription = Subscription(
                 tenant_id=tenant_id,
-                plan_id=new_plan,
+                plan_tier=new_plan,
                 status="active",
-                stripe_sub_id=str(stripe_sub_id) if stripe_sub_id else None,
-                stripe_cust_id=str(stripe_cust_id) if stripe_cust_id else None,
+                stripe_subscription_id=str(stripe_sub_id) if stripe_sub_id else None,
+                stripe_customer_id=str(stripe_cust_id) if stripe_cust_id else None,
             )
             self.db.add(subscription)
         
