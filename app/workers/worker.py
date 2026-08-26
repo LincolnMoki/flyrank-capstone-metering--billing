@@ -86,7 +86,7 @@ async def process_usage_snapshot(ctx, tenant_id: str):
             raise
 
 class WorkerSettings:
-    functions = [sample_background_task]
+    functions = [sample_background_task, process_usage_snapshot]
     redis_settings = RedisSettings(
         host=settings.REDIS_HOST,
         port=settings.REDIS_PORT,
