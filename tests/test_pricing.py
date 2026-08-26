@@ -6,13 +6,15 @@ def test_zero_tokens():
 
 def test_standard_pricing():
     # 1,000,000 standard input = 300 microcents
-    # 1,000,000 output = 1500 microcents
+    # 1,000,000 output * 1500 = 1,500,000,000 microcents
     cost = calculate_usage_cost(1_000_000, 0, 1_000_000, 0)
-    assert cost == 300 + 1500
+    assert cost == (1_000_000 * 300) + (1_000_000 * 1500)
 
 def test_cached_and_reasoning_pricing():
+    # 1,000,000 cached input * 150 = 150,000,000 microcents
+    # 1,000,000 reasoning * 1500 = 1,500,000,000 microcents
     cost = calculate_usage_cost(0, 1_000_000, 0, 1_000_000)
-    assert cost == 150 + 1500
+    assert cost == (1_000_000 * 150) + (1_000_000 * 1500)
 
 def test_extreme_volume_and_mixed():
     cost = calculate_usage_cost(500_000, 500_000, 200_000, 100_000)
