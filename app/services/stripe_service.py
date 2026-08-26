@@ -108,6 +108,38 @@ class StripeService:
                 except ValueError:
                     return False, f"Invalid tenant_id format: {tenant_id_str}"
 
+        elif event_type == "customer.subscription.deleted":
+            metadata = data_object.get("metadata", {})
+            tenant_id_str = metadata.get("tenant_id")
+
+            if tenant_id_str:
+                try:
+                    tenant_id = uuid.UUID(tenant_id_str)
+
+                    tenant_stmt = select(Tenant).where(Tenant.id == tenant_id)
+                    tenant_res = await self.db.execute(tenant_stmt)
+                    tenant = tenant_res.scalar_one_or_none()
+
+                    if tenant:
+                        # Return tenant to Free plan
+                        tenant.plan = "free"
+                        tenant.token_quota = PLAN_QUOTAS["free"]
+
+                        # Mark subscription as canceled
+                        sub_stmt = select(Subscription).where(
+                            Subscription.tenant_id == tenant_id
+                        )
+                        sub_res = await self.db.execute(sub_stmt)
+                        subscription = sub_res.scalar_one_or_none()
+
+                        if subscription:
+                            subscription.plan_tier = "free"
+                            subscription.status = "canceled"
+                            subscription.api_token_quota = PLAN_QUOTAS["free"]
+
+                except ValueError:
+                    return False, f"Invalid tenant_id format: {tenant_id_str}"
+
 
         # log events as processed
         log = WebhookLog(
@@ -161,6 +193,7 @@ class StripeService:
                 status="active",
                 stripe_subscription_id=str(stripe_sub_id) if stripe_sub_id else None,
                 stripe_customer_id=str(stripe_cust_id) if stripe_cust_id else None,
+                api_token_quota=quota,
             )
             self.db.add(subscription)
         
