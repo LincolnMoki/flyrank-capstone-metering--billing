@@ -5,12 +5,17 @@ from sqlalchemy.exc import IntegrityError
 from datetime import datetime, timezone
 from pydantic import BaseModel, Field
 from typing import Any, Optional
-
+from fastapi.security import APIKeyHeader
 from app.db.session import get_db
 from app.models.entities import Tenant, UsageEvent
 from app.services.pricing import calculate_usage_cost
 
 router = APIRouter()
+
+api_key_header = APIKeyHeader(
+    name="X-API-Key",
+    auto_error=True,
+)
 
 @router.post("/snapshot/{tenant_id}", status_code=status.HTTP_202_ACCEPTED)
 async def trigger_snapshot(tenant_id: str, request: Request):
@@ -36,7 +41,7 @@ class UsageEventCreate(BaseModel):
 @router.post("", status_code=status.HTTP_201_CREATED)
 async def ingest_usage_event(
     payload: UsageEventCreate,
-    x_api_key: str = Header(..., alias="X-API-Key"),
+    x_api_key: str = Depends(api_key_header),
     db: AsyncSession = Depends(get_db),
 ):
     """Ingest a metered usage event with robust idempotency guarantees."""
@@ -117,7 +122,7 @@ async def ingest_usage_event(
 
 @router.get("")
 async def get_tenant_usage(
-    x_api_key: str = Header(..., alias="X-API-Key"),
+    x_api_key: str = Depends(api_key_header),
     db: AsyncSession = Depends(get_db),
 ):
     """Fetch tenant details and usage metrics from PostgreSQL using AsyncSession."""
