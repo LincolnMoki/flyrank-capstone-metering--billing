@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Header, HTTPException, status
+from fastapi import APIRouter, Depends, Header, HTTPException, status, Request
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import IntegrityError
@@ -12,6 +12,18 @@ from app.services.pricing import calculate_usage_cost
 
 router = APIRouter()
 
+@router.post("/snapshot/{tenant_id}", status_code=status.HTTP_202_ACCEPTED)
+async def trigger_snapshot(tenant_id: str, request: Request):
+    """Enqueue background processing without blocking the response."""
+    job = await request.app.state.arq_pool.enqueue_job(
+        "process_usage_snapshot",
+        tenant_id,
+    )
+    return {
+        "status": "queued",
+        "job_id": job.job_id,
+        "message": "Background usage snapshot enqueued successfully.",
+    }
 class UsageEventCreate(BaseModel):
     idempotency_key: str = Field(..., max_length=255)
     usage_type: str = Field(default="ai_tokens", max_length=50)
