@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.services.stripe_service import StripeService
 from app.db.session import get_db
 
-router = APIRouter(prefix="/billing", tags=["Billing & Payments"])
+router = APIRouter()
 
 class CheckoutRequest(BaseModel):
     tenant_id:uuid.UUID

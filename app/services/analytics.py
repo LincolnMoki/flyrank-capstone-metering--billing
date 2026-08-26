@@ -27,7 +27,7 @@ class AnalyticsService:
 
         # Build aggregation query
         query = select(
-            func.coalesce(func.sum(UsageEvent.standard_input_tokens), 0).label("standard_input")
+            func.coalesce(func.sum(UsageEvent.standard_input_tokens), 0).label("standard_input"),
             func.coalesce(func.sum(UsageEvent.cached_input_tokens), 0).label("cached_input"),
             func.coalesce(func.sum(UsageEvent.output_tokens), 0).label("output"),
             func.coalesce(func.sum(UsageEvent.reasoning_tokens), 0).label("reasoning"),

@@ -7,12 +7,12 @@ class PlanTier(str, Enum):
     PRO = "PRO"
 
 class Settings(BaseSettings):
-    PROJECT_NAME: str = "DentalCare AI Metering Engine"
-    POSTGRES_USER: str = "dental_admin"
-    POSTGRES_PASSWORD: str = "dental-secret_pass"
+    PROJECT_NAME: str = "FlyRank Metering & Billing API"
+    POSTGRES_USER: str = "Fly_admin"
+    POSTGRES_PASSWORD: str = "Fly-secret_pass"
     POSTGRES_HOST: str = "localhost"
     POSTGRES_PORT: int = 5432
-    POSTGRES_DB: str = "dentalcare_db"
+    POSTGRES_DB: str = "metering_db"
 
     REDIS_HOST: str = "localhost"
     REDIS_PORT: int = 6379
@@ -33,7 +33,7 @@ class Settings(BaseSettings):
             f"postgresql+asyncpg://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}"
             f"@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
         )
-    model_config = SettingsConfigDict(enc_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
 settings = Settings()
 
