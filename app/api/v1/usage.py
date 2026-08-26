@@ -1,9 +1,10 @@
 from fastapi import APIRouter, Depends, Header, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
+from datetime import datetime, timezone
 
 from app.db.session import get_db
-from app.models.entities import Tenant
+from app.models.entities import Tenant, UsageEvent
 
 router = APIRouter()
 
@@ -14,8 +15,8 @@ async def get_tenant_usage(
     db: AsyncSession = Depends(get_db),
 ):
     """Fetch tenant details and usage metrics from PostgreSQL using AsyncSession."""
-    result = await db.execute(select(Tenant).where(Tenant.api_key == x_api_key))
-    tenant = result.scalar_one_or_none()
+    tenant_result = await db.execute(select(Tenant).where(Tenant.api_key == x_api_key))
+    tenant = tenant_result.scalar_one_or_none()
 
     if not tenant:
         raise HTTPException(
@@ -28,6 +29,28 @@ async def get_tenant_usage(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Tenant account is inactive",
         )
+    
+    # Window usage to the current calendar month (UTC)
+    first_of_month = datetime.now(timezone.utc).replace(
+        day=1, hour=0, minute=0, second=0, microsecond=0
+    )
+
+    # Aggregate total requests, token sum, and total cost
+    usage_stmt = (
+        select(
+            func.count(UsageEvent.id).label("total_requests"),
+            func.coalesce(func.sum(UsageEvent.total_tokens), 0).label("tokens_consumed"),
+            func.coalesce(func.sum(UsageEvent.cost_microcents), 0).label("total_microcents"),
+        )
+        .where(UsageEvent.tenant_id == tenant.id)
+        .where(UsageEvent.created_at >= first_of_month)
+    )
+
+    usage_result = await db.execute(usage_stmt)
+    usage_metrics = usage_result.one()
+
+    # Convert microcents to standard USD float (1 USD = 100,000,000 microcents)
+    cost_usd = round(float(usage_metrics.total_microcents) / 100_000_000.0, 6)
 
     return {
         "status": "success",
@@ -37,8 +60,8 @@ async def get_tenant_usage(
             "is_active": tenant.is_active,
         },
         "usage": {
-            "total_requests": 0,
-            "tokens_consumed": 0,
-            "current_period_cost": 0.00,
+            "total_requests": usage_metrics.total_requests,
+            "tokens_consumed": usage_metrics.tokens_consumed,
+            "current_period_cost": cost_usd,
         },
     }
