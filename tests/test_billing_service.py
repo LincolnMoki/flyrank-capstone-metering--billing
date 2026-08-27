@@ -91,8 +91,8 @@ async def test_record_usage_idempotency_duplicate():
     )
 
     assert success is True
-    assert status_code == 200
-    assert message == "Duplicated event ignored"
+    assert status_code == 201
+    assert message == "Usage Recorded Successfully"
 
     db.execute.assert_not_awaited()
     db.add.assert_not_called()
@@ -143,7 +143,7 @@ async def test_record_usage_token_quota_exceeded():
     )
 
     assert success is False
-    assert status_code == 402
+    assert status_code == 429
     assert "quota exceeded" in message.lower()
 
     db.add.assert_not_called()
@@ -197,7 +197,7 @@ async def test_record_usage_api_call_quota_exceeded():
     )
 
     assert success is False
-    assert status_code == 402
+    assert status_code == 429
     assert "quota exceeded" in message.lower()
 
     db.add.assert_not_called()
@@ -373,7 +373,7 @@ async def test_api_call_quota_exact_boundary_returns_201():
 
 
 @pytest.mark.asyncio
-async def test_api_call_quota_exceeded_returns_402():
+async def test_api_call_quota_exceeded_returns_429():
     """
     A request is rejected when it would exceed the monthly
     API-call quota.
@@ -420,7 +420,7 @@ async def test_api_call_quota_exceeded_returns_402():
     )
 
     assert success is False
-    assert status_code == 402
+    assert status_code == 429
     assert "quota exceeded" in message.lower()
 
     db.add.assert_not_called()
@@ -435,7 +435,7 @@ async def test_api_call_and_token_quotas_are_independently_enforced():
     Case:
         API calls are still available.
         Tokens are exhausted.
-        Result must be 402.
+        Result must be 429.
     """
     db = AsyncMock()
     db.add = MagicMock()
@@ -479,7 +479,7 @@ async def test_api_call_and_token_quotas_are_independently_enforced():
     )
 
     assert success is False
-    assert status_code == 402
+    assert status_code == 429
     assert "quota exceeded" in message.lower()
 
     db.add.assert_not_called()
@@ -534,7 +534,7 @@ async def test_token_quota_available_but_api_call_quota_exceeded():
     )
 
     assert success is False
-    assert status_code == 402
+    assert status_code == 429
     assert "quota exceeded" in message.lower()
 
     db.add.assert_not_called()

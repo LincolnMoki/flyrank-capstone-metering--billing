@@ -7,8 +7,8 @@ from pydantic import BaseModel, Field
 from typing import Any, Optional
 from fastapi.security import APIKeyHeader
 from app.db.session import get_db
-from app.models.entities import Tenant, UsageEvent
-from app.services.pricing import calculate_usage_cost
+from app.core.config import MICROCENTS_PER_USD
+from app.models.entities import Subscription, Tenant, UsageEvent
 from app.services.billing import BillingService
 from fastapi.responses import JSONResponse
 
@@ -81,6 +81,7 @@ async def ingest_usage_event(
         cached_input_tokens=payload.cached_input_tokens,
         output_tokens=payload.output_tokens,
         reasoning_tokens=payload.reasoning_tokens,
+        metadata_json=payload.metadata_json,
     )
 
     if not success:
@@ -140,8 +141,12 @@ async def get_tenant_usage(
     usage_result = await db.execute(usage_stmt)
     usage_metrics = usage_result.one()
 
-    # Convert microcents to standard USD float (1 USD = 100,000,000 microcents)
-    cost_usd = round(float(usage_metrics.total_microcents) / 100_000_000.0, 6)
+    subscription_result = await db.execute(
+        select(Subscription).where(Subscription.tenant_id == tenant.id)
+    )
+    subscription = subscription_result.scalar_one_or_none()
+
+    cost_usd = round(float(usage_metrics.total_microcents) / MICROCENTS_PER_USD, 6)
 
     return {
         "status": "success",
@@ -154,5 +159,11 @@ async def get_tenant_usage(
             "total_requests": usage_metrics.total_requests,
             "tokens_consumed": usage_metrics.tokens_consumed,
             "current_period_cost": cost_usd,
+        },
+        "subscription": {
+            "plan_tier": subscription.plan_tier if subscription else "FREE",
+            "status": subscription.status if subscription else "missing",
+            "api_call_quota": subscription.api_call_quota if subscription else 0,
+            "api_token_quota": subscription.api_token_quota if subscription else 0,
         },
     }

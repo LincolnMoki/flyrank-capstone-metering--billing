@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime, timezone
-from typing import Optional, Tuple
+from typing import Any, Optional, Tuple
 
 import redis.asyncio as aioredis
 from sqlalchemy import func, select
@@ -36,6 +36,7 @@ class BillingService:
         cached_input_tokens: int = 0,
         output_tokens: int = 0,
         reasoning_tokens: int = 0,
+        metadata_json: dict[str, Any] | None = None,
     ) -> Tuple[bool, int, str]:
         """
         Record one usage event after enforcing the tenant's monthly quotas.
@@ -75,7 +76,9 @@ class BillingService:
         )
 
         if not is_new:
-            return True, 200, "Duplicated event ignored"
+            # A retry represents the same accepted request. Return the same
+            # outcome so API clients do not need a special retry path.
+            return True, 201, "Usage Recorded Successfully"
 
         # ---------------------------------------------------------
         # 3. Fetch tenant
@@ -173,7 +176,7 @@ class BillingService:
         if current_api_calls + 1 > api_call_quota:
             await self.redis.delete(dedup_key)
 
-            return False, 402, "Quota Exceeded: Payment Required"
+            return False, 429, "API-call quota exceeded"
 
         # ---------------------------------------------------------
         # 10. Enforce AI-token quota
@@ -181,7 +184,7 @@ class BillingService:
         if current_tokens + total_tokens > api_token_quota:
             await self.redis.delete(dedup_key)
 
-            return False, 402, "Quota Exceeded: Payment Required"
+            return False, 429, "AI-token quota exceeded"
 
         # ---------------------------------------------------------
         # 11. Calculate usage cost
@@ -206,7 +209,7 @@ class BillingService:
             reasoning_tokens=reasoning_tokens,
             total_tokens=total_tokens,
             cost_microcents=cost_microcents,
-            metadata_json={},
+            metadata_json=metadata_json or {},
         )
 
         self.db.add(event)

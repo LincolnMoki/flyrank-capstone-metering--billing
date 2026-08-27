@@ -5,7 +5,7 @@ import httpx
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config import settings, PlanTier
+from app.core.config import PRO_CHECKOUT_AMOUNT_USD, PlanTier, settings
 from app.models.entities import Tenant, Subscription, WebhookLog
 
 
@@ -65,7 +65,6 @@ class FlutterwaveService:
             "client_id": settings.FLW_CLIENT_ID,
             "client_secret": settings.FLW_CLIENT_SECRET,
             "grant_type": "client_credentials",
-            "amount": settings.PRO_CHECKOUT_AMOUNT_USD,
         }
 
         async with httpx.AsyncClient(timeout=30) as client:
@@ -192,11 +191,15 @@ class FlutterwaveService:
         reference = f"flyrank-pro-{uuid.uuid4().hex[:20]}"
 
         payload = {
-            "amount": 10,
+            "amount": PRO_CHECKOUT_AMOUNT_USD,
             "currency": "USD",
             "customer_id": customer_id,
             "redirect_url": success_url,
             "reference": reference,
+            "meta": {
+                "tenant_id": str(tenant.id),
+                "plan_id": plan_id,
+            },
             "max_retry_attempts": 3,
             "session_duration": 30,
         }

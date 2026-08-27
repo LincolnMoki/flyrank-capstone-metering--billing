@@ -18,8 +18,8 @@ def make_subscription(api_call_quota=1_000, api_token_quota=100_000):
 @pytest.mark.asyncio
 async def test_double_count_prevention():
     """
-    Duplicate idempotency keys must return 200 without
-    recording usage again.
+    Duplicate idempotency keys must mirror the original successful response
+    without recording usage again.
     """
     db = AsyncMock()
     db.add = MagicMock()
@@ -38,18 +38,18 @@ async def test_double_count_prevention():
     )
 
     assert success is True
-    assert status_code == 200
-    assert msg == "Duplicated event ignored"
+    assert status_code == 201
+    assert msg == "Usage Recorded Successfully"
 
     db.add.assert_not_called()
     db.commit.assert_not_awaited()
 
 
 @pytest.mark.asyncio
-async def test_quota_exceeded_returns_402():
+async def test_quota_exceeded_returns_429():
     """
     Verify exceeding the monthly token quota returns
-    HTTP 402 Payment Required.
+        HTTP 429 Too Many Requests.
     """
     db = AsyncMock()
     db.add = MagicMock()
@@ -87,13 +87,13 @@ async def test_quota_exceeded_returns_402():
     service = BillingService(db, redis)
 
     success, status_code, msg = await service.record_usage(
-        tenant,
+        tenant.id,
         "evt_124",
         standard_input_tokens=200,
     )
 
     assert success is False
-    assert status_code == 402
+    assert status_code == 429
     assert "quota exceeded" in msg.lower()
 
 

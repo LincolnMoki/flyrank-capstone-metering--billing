@@ -32,6 +32,16 @@ class Tenant(Base):
         "UsageEvent", back_populates="tenant", cascade="all, delete-orphan"
     )
 
+
+class Plan(Base):
+    __tablename__ = "plans"
+
+    tier: Mapped[str] = mapped_column(String(50), primary_key=True)
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    api_call_quota: Mapped[int] = mapped_column(Integer, nullable=False)
+    api_token_quota: Mapped[int] = mapped_column(Integer, nullable=False)
+
+
 class Subscription(Base):
     __tablename__ = "subscriptions"
     id: Mapped[uuid.UUID] = mapped_column(
@@ -52,7 +62,7 @@ class Subscription(Base):
     )
     
     plan_tier: Mapped[str] = mapped_column(
-        String(50), default="FREE", nullable=False
+        String(50), ForeignKey("plans.tier"), default="FREE", nullable=False
     )
     status: Mapped[str] = mapped_column(
         String(50), default="active", nullable=False
@@ -79,7 +89,7 @@ class Subscription(Base):
 
 class UsageEvent(Base):
     __tablename__ = "usage_events"
-    id: Mapped [uuid:UUID] = mapped_column(
+    id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
     tenant_id: Mapped[uuid.UUID] = mapped_column(

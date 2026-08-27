@@ -3,7 +3,7 @@ import os
 import sys
 import uuid
 from dotenv import load_dotenv
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 
@@ -12,8 +12,7 @@ load_dotenv()
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app.core.config import settings
-from app.db.session import Base
-from app.models.entities import Tenant, Subscription
+from app.models.entities import Subscription, Tenant, UsageEvent
 
 DEMO_TENANT_ID = uuid.UUID("00000000-0000-0000-0000-000000000001")
 
@@ -24,13 +23,15 @@ async def seed_demo_tenant():
 
     engine = create_async_engine(db_url, echo=False)
 
-    async with engine.begin() as conn:
-        print("Ensuring database tables exist...")
-        await conn.run_sync(Base.metadata.create_all)
-
     async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
     async with async_session() as session:
+        # This script owns the fixed demo tenant, so reset only its metering
+        # data to make repeated seeding deterministic for the live demo.
+        await session.execute(
+            delete(UsageEvent).where(UsageEvent.tenant_id == DEMO_TENANT_ID)
+        )
+
         result = await session.execute(
             select(Tenant).where(Tenant.id == DEMO_TENANT_ID)
         )

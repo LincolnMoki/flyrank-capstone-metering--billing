@@ -27,7 +27,7 @@ async def test_usage_rollup_aggregation():
     mock_row.output = 2000
     mock_row.reasoning = 300
     mock_row.total_tokens = 3800
-    mock_row.total_microcents = 15200  # $0.015200 USD
+    mock_row.total_microcents = 15200  # $0.000152 USD
     mock_row.total_events = 5
 
     db_usage_res = MagicMock()
@@ -44,7 +44,7 @@ async def test_usage_rollup_aggregation():
     assert result["token_breakdown"]["total_tokens"] == 3800
     assert result["token_breakdown"]["standard_input_tokens"] == 1000
     assert result["cost_summary"]["total_cost_microcents"] == 15200
-    assert result["cost_summary"]["total_cost_usd"] == 0.0152
+    assert result["cost_summary"]["total_cost_usd"] == 0.000152
     assert result["total_events"] == 5
 
 

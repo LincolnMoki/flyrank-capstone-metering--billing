@@ -1,0 +1,9 @@
+run: docker compose up --build
+seed: docker compose exec api python scripts/seed_demo_tenant.py
+test: pytest -q
+base_url: http://localhost:8000
+endpoints:
+  usage_ingest: POST /api/v1/usage
+  usage_read: GET /api/v1/usage
+  checkout: POST /api/v1/billing/checkout
+  flutterwave_webhook: POST /api/v1/billing/webhooks/flutterwave

@@ -3,6 +3,7 @@ from typing import Dict, Any, Optional
 from datetime import datetime
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
+from app.core.config import MICROCENTS_PER_USD
 from app.models.entities import Tenant, UsageEvent
 
 class AnalyticsService:
@@ -11,7 +12,7 @@ class AnalyticsService:
 
     async def get_usage_rollup(
         self,
-        tenant_id = uuid.UUID,
+        tenant_id: uuid.UUID,
         start_date: Optional[datetime] = None,
         end_date: Optional[datetime] = None,
     ) -> Dict[str, Any]:
@@ -45,7 +46,7 @@ class AnalyticsService:
         row = res.one()
 
         total_microcents = int(row.total_microcents)
-        cost_usd = round(total_microcents / 1_000_000, 6)
+        cost_usd = round(total_microcents / MICROCENTS_PER_USD, 6)
 
         return {
             "tenant_id": str(tenant_id),
@@ -64,4 +65,3 @@ class AnalyticsService:
             },
             "total_events": int(row.total_events),
         }
-    
