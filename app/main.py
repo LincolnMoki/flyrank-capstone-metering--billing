@@ -32,7 +32,7 @@ app = FastAPI(
     title="FlyRank Metering & Billing API",
     description=(
         "API for AI usage metering, monthly quota enforcement, "
-        "cost tracking, asynchronous usage processing, and Stripe billing."
+        "cost tracking, asynchronous usage processing, and Flutterwave billing."
     ),
     version="1.0.0",
     lifespan=lifespan,

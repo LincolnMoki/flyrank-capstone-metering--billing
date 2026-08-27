@@ -1,23 +1,29 @@
 import uuid
 from typing import Optional
+
 from app.core.config import settings
 from fastapi import APIRouter, Depends, HTTPException, Request, Header, status
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.services.flutterwave_service import FlutterwaveService
 from app.db.session import get_db
 
+
 router = APIRouter()
 
+
 class CheckoutRequest(BaseModel):
-    tenant_id:uuid.UUID
+    tenant_id: uuid.UUID
     plan_id: str
     success_url: str
     cancel_url: str
 
+
 class CheckoutResponse(BaseModel):
     session_id: str
     checkout_url: str
+
 
 @router.post(
     "/checkout",

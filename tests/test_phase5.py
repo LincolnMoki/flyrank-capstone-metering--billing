@@ -1,43 +1,28 @@
 import uuid
+
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
-import stripe
-from app.services.stripe_service import StripeService
+from unittest.mock import AsyncMock, MagicMock
 
-
-@pytest.mark.asyncio
-async def test_forged_webhook_signature_rejection():
-    """
-    Verify forged or unverified Stripe webhook payloads raise SignatureVerificationError.
-    """
-    db = AsyncMock()
-    db.add = MagicMock()  # Synchronous ORM method
-    service = StripeService(db)
-
-    payload = b'{"id": "evt_fake_123", "type": "checkout.session.completed"}'
-    invalid_sig = "t=12345,v1=invalid_signature_hash"
-
-    with patch("stripe.Webhook.construct_event") as mock_construct:
-        mock_construct.side_effect = stripe.SignatureVerificationError(
-            "Invalid signature", payload, invalid_sig
-        )
-
-        with pytest.raises(stripe.SignatureVerificationError):
-            service.verify_webhook_signature(payload, invalid_sig)
+from app.services.flutterwave_service import FlutterwaveService
 
 
 @pytest.mark.asyncio
 async def test_quota_boundary_enforcement():
     """
-    Verify tenant nearing token quota boundary blocks usage upon hitting limit.
+    Verify tenant nearing token quota boundary blocks usage
+    when the request would exceed the quota.
     """
-    mock_tenant = MagicMock()
-    mock_tenant.plan = "free"
-    mock_tenant.token_quota = 100_000
-    mock_tenant.current_usage = 99_950  # 50 tokens below quota limit
 
+    mock_subscription = MagicMock()
+    mock_subscription.plan_tier = "FREE"
+    mock_subscription.api_token_quota = 100_000
+
+    current_usage = 99_950
     requested_tokens = 100
-    is_allowed = (mock_tenant.current_usage + requested_tokens) <= mock_tenant.token_quota
+
+    is_allowed = (
+        current_usage + requested_tokens
+    ) <= mock_subscription.api_token_quota
 
     assert is_allowed is False
 
@@ -45,16 +30,18 @@ async def test_quota_boundary_enforcement():
 @pytest.mark.asyncio
 async def test_upgrade_resets_quota_at_boundary():
     """
-    Verify tenant sitting at quota limit is immediately unblocked after Pro checkout.
+    Verify a successful Flutterwave Pro payment gives the tenant
+    the Pro token quota.
     """
+
     tenant_id = uuid.uuid4()
+
     mock_tenant = MagicMock()
     mock_tenant.id = tenant_id
-    mock_tenant.plan = "free"
-    mock_tenant.token_quota = 100_000
+    mock_tenant.name = "Boundary Tenant"
 
     db_webhook_res = MagicMock()
-    db_webhook_res.scalar_one_or_none.return_value = None  # First time event
+    db_webhook_res.scalar_one_or_none.return_value = None
 
     db_tenant_res = MagicMock()
     db_tenant_res.scalar_one_or_none.return_value = mock_tenant
@@ -63,26 +50,38 @@ async def test_upgrade_resets_quota_at_boundary():
     db_sub_res.scalar_one_or_none.return_value = None
 
     db = AsyncMock()
-    db.add = MagicMock()  # Synchronous ORM method
-    db.execute.side_effect = [db_webhook_res, db_tenant_res, db_sub_res]
+    db.add = MagicMock()
 
-    service = StripeService(db)
+    db.execute.side_effect = [
+        db_webhook_res,
+        db_tenant_res,
+        db_sub_res,
+    ]
+
+    service = FlutterwaveService(db)
 
     event = {
-        "id": "evt_boundary_upgrade_01",
-        "type": "checkout.session.completed",
+        "id": "flw_evt_boundary_upgrade_01",
+        "type": "charge.completed",
         "data": {
-            "object": {
-                "client_reference_id": str(tenant_id),
-                "customer": "cus_boundary_123",
-                "subscription": "sub_boundary_123",
-                "metadata": {"tenant_id": str(tenant_id), "plan_id": "pro"},
-            }
+            "id": "flw_tx_boundary_123",
+            "status": "successful",
+            "meta": {
+                "tenant_id": str(tenant_id),
+                "plan_id": "pro",
+            },
         },
     }
 
     success, message = await service.handle_webhook_event(event)
 
     assert success is True
-    assert mock_tenant.plan == "pro"
-    assert mock_tenant.token_quota == 10_000_000
+    assert message == "Webhook processed successfully"
+
+    # The newly-created Subscription receives the Pro quota.
+    created_subscription = db.add.call_args.args[0]
+
+    assert created_subscription.plan_tier == "pro"
+    assert created_subscription.api_token_quota == 10_000_000
+
+    db.commit.assert_awaited_once()
