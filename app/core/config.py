@@ -17,7 +17,10 @@ class Settings(BaseSettings):
     REDIS_HOST: str = "localhost"
     REDIS_PORT: int = 6379
 
-    FLW_SECRET_KEY: str = ""
+    FLW_CLIENT_SECRET: str = ""
+    FLW_CLIENT_ID: str = ""
+    FLW_CLIENT_SECRET: str = ""
+    FLW_ENCRYPTION_KEY: str = ""
     FLW_SECRET_HASH: str = ""
 
     # Micro-Cent Rates per Tokens ($1 USD = 100,000,000 micro-cents)

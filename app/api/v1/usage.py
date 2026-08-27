@@ -10,6 +10,7 @@ from app.db.session import get_db
 from app.models.entities import Tenant, UsageEvent
 from app.services.pricing import calculate_usage_cost
 from app.services.billing import BillingService
+from fastapi.responses import JSONResponse
 
 router = APIRouter()
 
@@ -40,7 +41,7 @@ class UsageEventCreate(BaseModel):
     metadata_json: Optional[dict[str, Any]] = Field(default=None)
 
 
-@router.post("", status_code=status.HTTP_201_CREATED)
+@router.post("")
 async def ingest_usage_event(
     payload: UsageEventCreate,
     request: Request,
@@ -88,13 +89,16 @@ async def ingest_usage_event(
             detail=message,
         )
 
-    return {
-        "status": "success",
-        "message": message,
-        "tenant_id": str(tenant.id),
-        "idempotency_key": payload.idempotency_key,
-        "status_code": status_code,
-    }
+    return JSONResponse(
+        status_code=status_code,
+        content={
+            "status": "success",
+            "message": message,
+            "tenant_id": str(tenant.id),
+            "idempotency_key": payload.idempotency_key,
+            "status_code": status_code,
+        },
+    )
 
 @router.get("")
 async def get_tenant_usage(

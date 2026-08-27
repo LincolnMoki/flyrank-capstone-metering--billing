@@ -254,3 +254,287 @@ async def test_record_usage_allows_request_at_quota_boundary():
 
     db.add.assert_called_once()
     db.commit.assert_awaited_once()
+
+@pytest.mark.asyncio
+async def test_api_call_quota_under_limit_returns_201():
+    """
+    A request is accepted when the new API call remains
+    below the monthly API-call quota.
+    """
+    db = AsyncMock()
+    db.add = MagicMock()
+
+    redis = AsyncMock()
+    redis.set.return_value = True
+
+    tenant = MagicMock()
+    tenant.id = uuid.uuid4()
+    tenant.is_active = True
+
+    subscription = build_subscription(
+        api_call_quota=10,
+        api_token_quota=100_000,
+    )
+
+    tenant_result = MagicMock()
+    tenant_result.scalar_one_or_none.return_value = tenant
+
+    subscription_result = MagicMock()
+    subscription_result.scalar_one_or_none.return_value = subscription
+
+    usage_result = MagicMock()
+    usage_result.one.return_value = MagicMock(
+        api_calls=8,
+        tokens=50_000,
+    )
+
+    db.execute.side_effect = [
+        tenant_result,
+        subscription_result,
+        usage_result,
+    ]
+
+    service = BillingService(db, redis)
+
+    success, status_code, message = await service.record_usage(
+        tenant_id=tenant.id,
+        idempotency_key="api-call-under-limit",
+        tokens_used=100,
+    )
+
+    assert success is True
+    assert status_code == 201
+    assert message == "Usage Recorded Successfully"
+
+    db.add.assert_called_once()
+    db.commit.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_api_call_quota_exact_boundary_returns_201():
+    """
+    The request that brings usage exactly to the quota is allowed.
+
+    Example:
+        Current calls = 9
+        Quota = 10
+        New request = 1 call
+
+        9 + 1 = 10 -> allowed
+    """
+    db = AsyncMock()
+    db.add = MagicMock()
+
+    redis = AsyncMock()
+    redis.set.return_value = True
+
+    tenant = MagicMock()
+    tenant.id = uuid.uuid4()
+    tenant.is_active = True
+
+    subscription = build_subscription(
+        api_call_quota=10,
+        api_token_quota=100_000,
+    )
+
+    tenant_result = MagicMock()
+    tenant_result.scalar_one_or_none.return_value = tenant
+
+    subscription_result = MagicMock()
+    subscription_result.scalar_one_or_none.return_value = subscription
+
+    usage_result = MagicMock()
+    usage_result.one.return_value = MagicMock(
+        api_calls=9,
+        tokens=50_000,
+    )
+
+    db.execute.side_effect = [
+        tenant_result,
+        subscription_result,
+        usage_result,
+    ]
+
+    service = BillingService(db, redis)
+
+    success, status_code, message = await service.record_usage(
+        tenant_id=tenant.id,
+        idempotency_key="api-call-exact-boundary",
+        tokens_used=100,
+    )
+
+    assert success is True
+    assert status_code == 201
+    assert message == "Usage Recorded Successfully"
+
+    db.add.assert_called_once()
+    db.commit.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_api_call_quota_exceeded_returns_402():
+    """
+    A request is rejected when it would exceed the monthly
+    API-call quota.
+    """
+    db = AsyncMock()
+    db.add = MagicMock()
+
+    redis = AsyncMock()
+    redis.set.return_value = True
+
+    tenant = MagicMock()
+    tenant.id = uuid.uuid4()
+    tenant.is_active = True
+
+    subscription = build_subscription(
+        api_call_quota=10,
+        api_token_quota=100_000,
+    )
+
+    tenant_result = MagicMock()
+    tenant_result.scalar_one_or_none.return_value = tenant
+
+    subscription_result = MagicMock()
+    subscription_result.scalar_one_or_none.return_value = subscription
+
+    usage_result = MagicMock()
+    usage_result.one.return_value = MagicMock(
+        api_calls=10,
+        tokens=50_000,
+    )
+
+    db.execute.side_effect = [
+        tenant_result,
+        subscription_result,
+        usage_result,
+    ]
+
+    service = BillingService(db, redis)
+
+    success, status_code, message = await service.record_usage(
+        tenant_id=tenant.id,
+        idempotency_key="api-call-over-limit",
+        tokens_used=100,
+    )
+
+    assert success is False
+    assert status_code == 402
+    assert "quota exceeded" in message.lower()
+
+    db.add.assert_not_called()
+    db.commit.assert_not_awaited()
+    redis.delete.assert_awaited_once()
+
+@pytest.mark.asyncio
+async def test_api_call_and_token_quotas_are_independently_enforced():
+    """
+    Verify API-call and token quotas are independent.
+
+    Case:
+        API calls are still available.
+        Tokens are exhausted.
+        Result must be 402.
+    """
+    db = AsyncMock()
+    db.add = MagicMock()
+
+    redis = AsyncMock()
+    redis.set.return_value = True
+
+    tenant = MagicMock()
+    tenant.id = uuid.uuid4()
+    tenant.is_active = True
+
+    subscription = build_subscription(
+        api_call_quota=10,
+        api_token_quota=1_000,
+    )
+
+    tenant_result = MagicMock()
+    tenant_result.scalar_one_or_none.return_value = tenant
+
+    subscription_result = MagicMock()
+    subscription_result.scalar_one_or_none.return_value = subscription
+
+    usage_result = MagicMock()
+    usage_result.one.return_value = MagicMock(
+        api_calls=5,
+        tokens=950,
+    )
+
+    db.execute.side_effect = [
+        tenant_result,
+        subscription_result,
+        usage_result,
+    ]
+
+    service = BillingService(db, redis)
+
+    success, status_code, message = await service.record_usage(
+        tenant_id=tenant.id,
+        idempotency_key="token-limit-independent",
+        tokens_used=100,
+    )
+
+    assert success is False
+    assert status_code == 402
+    assert "quota exceeded" in message.lower()
+
+    db.add.assert_not_called()
+    db.commit.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_token_quota_available_but_api_call_quota_exceeded():
+    """
+    Verify API-call quota can reject a request even when
+    token quota has plenty of remaining capacity.
+    """
+    db = AsyncMock()
+    db.add = MagicMock()
+
+    redis = AsyncMock()
+    redis.set.return_value = True
+
+    tenant = MagicMock()
+    tenant.id = uuid.uuid4()
+    tenant.is_active = True
+
+    subscription = build_subscription(
+        api_call_quota=10,
+        api_token_quota=1_000_000,
+    )
+
+    tenant_result = MagicMock()
+    tenant_result.scalar_one_or_none.return_value = tenant
+
+    subscription_result = MagicMock()
+    subscription_result.scalar_one_or_none.return_value = subscription
+
+    usage_result = MagicMock()
+    usage_result.one.return_value = MagicMock(
+        api_calls=10,
+        tokens=100,
+    )
+
+    db.execute.side_effect = [
+        tenant_result,
+        subscription_result,
+        usage_result,
+    ]
+
+    service = BillingService(db, redis)
+
+    success, status_code, message = await service.record_usage(
+        tenant_id=tenant.id,
+        idempotency_key="call-limit-independent",
+        tokens_used=100,
+    )
+
+    assert success is False
+    assert status_code == 402
+    assert "quota exceeded" in message.lower()
+
+    db.add.assert_not_called()
+    db.commit.assert_not_awaited()
