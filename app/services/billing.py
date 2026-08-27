@@ -109,12 +109,14 @@ class BillingService:
         event = UsageEvent(
             tenant_id=tenant_id,
             idempotency_key=idempotency_key,
+            usage_type="ai_tokens",
             standard_input_tokens=standard_input_tokens,
             cached_input_tokens=cached_input_tokens,
             output_tokens=output_tokens,
             reasoning_tokens=reasoning_tokens,
             total_tokens=total_tokens,
             cost_microcents=cost_microcents,
+            metadata_json={},
         )
 
         self.db.add(event)

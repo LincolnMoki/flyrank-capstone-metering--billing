@@ -48,7 +48,7 @@ async def test_create_checkout_endpoint_success():
 
 @pytest.mark.asyncio
 async def test_stripe_webhook_endpoint_success():
-    """Verify POST /api/v1/billing/webhooks/stripe processes event successfully."""
+    """Verify POST /api/v1/billing/webhooks/flutterwave processes event successfully."""
     headers = {"stripe-signature": "t=123,v1=test_signature"}
     raw_payload = b'{"id": "evt_test_101", "type": "checkout.session.completed"}'
 

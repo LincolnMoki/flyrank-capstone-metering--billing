@@ -1,10 +1,10 @@
 import uuid
 from typing import Optional
-import stripe
+from app.core.config import settings
 from fastapi import APIRouter, Depends, HTTPException, Request, Header, status
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.services.stripe_service import StripeService
+from app.services.flutterwave_service import FlutterwaveService
 from app.db.session import get_db
 
 router = APIRouter()
@@ -23,70 +23,75 @@ class CheckoutResponse(BaseModel):
     "/checkout",
     response_model=CheckoutResponse,
     status_code=status.HTTP_200_OK,
-    summary="Create Stripe Checkout Session",
+    summary="Create Flutterwave Checkout Session",
 )
 async def create_checkout(
     payload: CheckoutRequest,
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Create a Stripe Checkout Session for Subscription upgrades
+    Create a Flutterwave hosted payment session.
     """
-    service = StripeService(db)
+
+    service = FlutterwaveService(db)
+
     try:
-        res = await service.create_checkout_session(
+        return await service.create_checkout_session(
             tenant_id=payload.tenant_id,
             plan_id=payload.plan_id,
             success_url=payload.success_url,
             cancel_url=payload.cancel_url,
         )
-        return res
+
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Failed to create checkout session: {str(e)}",
         )
 
+
 @router.post(
-    "/webhooks/stripe",
+    "/webhooks/flutterwave",
     status_code=status.HTTP_200_OK,
-    summary="Stripe Webhook Receiver",
+    summary="Flutterwave Webhook Receiver",
 )
-async def stripe_webhook(
+async def flutterwave_webhook(
     request: Request,
-    stripe_signature: Optional[str] = Header(None, alias="stripe-signature"),
+    verif_hash: Optional[str] = Header(
+        None,
+        alias="verif-hash",
+    ),
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Receives raw Stripe webhook payloads, verifies signatures, and updates subscriptions.
+    Receives and verifies Flutterwave webhook events.
     """
-    if not stripe_signature:
+
+    if not verif_hash:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Missing stripe-signature header",
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Missing Flutterwave webhook signature",
         )
 
-    payload = await request.body()
-    service = StripeService(db)
-
-    try:
-        event = service.verify_webhook_signature(payload, stripe_signature)
-    except stripe.error.SignatureVerificationError as e:
+    if verif_hash != settings.FLW_SECRET_HASH:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Invalid webhook signature: {str(e)}",
-        )
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Error verifying event: {str(e)}",
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid Flutterwave webhook signature",
         )
 
-    success, message = await service.handle_webhook_event(event)
+    payload = await request.json()
+
+    service = FlutterwaveService(db)
+
+    success, message = await service.handle_webhook_event(payload)
+
     if not success:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=message,
         )
 
-    return {"status": "success", "detail": message}
+    return {
+        "status": "success",
+        "detail": message,
+    }

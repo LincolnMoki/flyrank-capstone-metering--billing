@@ -9,6 +9,7 @@ from fastapi.security import APIKeyHeader
 from app.db.session import get_db
 from app.models.entities import Tenant, UsageEvent
 from app.services.pricing import calculate_usage_cost
+from app.services.billing import BillingService
 
 router = APIRouter()
 
@@ -39,13 +40,19 @@ class UsageEventCreate(BaseModel):
     metadata_json: Optional[dict[str, Any]] = Field(default=None)
 
 @router.post("", status_code=status.HTTP_201_CREATED)
+
+@router.post("", status_code=status.HTTP_201_CREATED)
 async def ingest_usage_event(
     payload: UsageEventCreate,
+    request: Request,
     x_api_key: str = Depends(api_key_header),
     db: AsyncSession = Depends(get_db),
 ):
-    """Ingest a metered usage event with robust idempotency guarantees."""
-    tenant_result = await db.execute(select(Tenant).where(Tenant.api_key == x_api_key))
+    """Ingest a usage event through the centralized billing service."""
+
+    tenant_result = await db.execute(
+        select(Tenant).where(Tenant.api_key == x_api_key)
+    )
     tenant = tenant_result.scalar_one_or_none()
 
     if not tenant:
@@ -60,64 +67,34 @@ async def ingest_usage_event(
             detail="Tenant account is inactive",
         )
 
-    total_tokens = (
-        payload.standard_input_tokens
-        + payload.cached_input_tokens
-        + payload.output_tokens
-        + payload.reasoning_tokens
-    )
-    
-    cost_microcents = calculate_usage_cost(
-        payload.standard_input_tokens,
-        payload.cached_input_tokens,
-        payload.output_tokens,
-        payload.reasoning_tokens,
+    redis = request.app.state.redis
+
+    service = BillingService(
+        db=db,
+        redis=redis,
     )
 
-    usage_event = UsageEvent(
+    success, status_code, message = await service.record_usage(
         tenant_id=tenant.id,
         idempotency_key=payload.idempotency_key,
-        usage_type=payload.usage_type,
         standard_input_tokens=payload.standard_input_tokens,
         cached_input_tokens=payload.cached_input_tokens,
         output_tokens=payload.output_tokens,
         reasoning_tokens=payload.reasoning_tokens,
-        total_tokens=total_tokens,
-        cost_microcents=cost_microcents,
-        metadata_json=payload.metadata_json or {},
     )
 
-    db.add(usage_event)
-    try:
-        await db.commit()
-        await db.refresh(usage_event)
-    except IntegrityError:
-        await db.rollback()
-        # Idempotent retry: Return existing event or success acknowledgment
-        existing_event_result = await db.execute(
-            select(UsageEvent).where(
-                UsageEvent.tenant_id == tenant.id,
-                UsageEvent.idempotency_key == payload.idempotency_key
-            )
-        )
-        existing = existing_event_result.scalar_one_or_none()
-        if existing:
-            return {
-                "status": "success",
-                "message": "Event already processed (idempotent duplicate)",
-                "event_id": str(existing.id),
-                "cost_microcents": existing.cost_microcents,
-            }
+    if not success:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Duplicate idempotency key conflict",
+            status_code=status_code,
+            detail=message,
         )
 
     return {
         "status": "success",
-        "event_id": str(usage_event.id),
-        "total_tokens": total_tokens,
-        "cost_microcents": cost_microcents,
+        "message": message,
+        "tenant_id": str(tenant.id),
+        "idempotency_key": payload.idempotency_key,
+        "status_code": status_code,
     }
 
 @router.get("")

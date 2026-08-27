@@ -17,8 +17,8 @@ class Settings(BaseSettings):
     REDIS_HOST: str = "localhost"
     REDIS_PORT: int = 6379
 
-    STRIPE_SECRET_KEY: str = "sk_test_mock"
-    STRIPE_WEBHOOK_SECRET: str = "whsec_mock"
+    FLW_SECRET_KEY: str = "yophcZ85gOPf3CXZJqgrK8VrwDru1Lk0"
+    FLW_SECRET_HASH: str = "FLW_demo_9f8c2a71e4b64d13a6c5f9028b7d31e6~"
 
     # Micro-Cent Rates per Tokens ($1 USD = 100,000,000 micro-cents)
     RATE_STANDARD_INPUTS_MICROCENTS: int = 300    # $3.00 / 1M                  
