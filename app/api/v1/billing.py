@@ -1,5 +1,5 @@
 import uuid
-from typing import Optional
+from typing import Optional, Any
 
 from app.core.config import settings
 from fastapi import APIRouter, Depends, HTTPException, Request, Header, status
@@ -60,6 +60,33 @@ async def create_checkout(
     "/webhooks/flutterwave",
     status_code=status.HTTP_200_OK,
     summary="Flutterwave Webhook Receiver",
+    openapi_extra={
+        "requestBody": {
+            "required": True,
+            "content": {
+                "application/json": {
+                    "example": {
+                        "id": "flw_demo_upgrade_001",
+                        "type": "charge.completed",
+                        "data": {
+                            "id": "flw_tx_demo_001",
+                            "status": "successful",
+                            "amount": 10,
+                            "currency": "USD",
+                            "customer": {
+                                "id": "flw_customer_demo_001",
+                                "email": "demo@flyrank.test",
+                            },
+                            "meta": {
+                                "tenant_id": "00000000-0000-0000-0000-000000000001",
+                                "plan_id": "pro",
+                            },
+                        },
+                    }
+                }
+            },
+        }
+    },
 )
 async def flutterwave_webhook(
     request: Request,

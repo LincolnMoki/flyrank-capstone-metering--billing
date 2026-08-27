@@ -39,7 +39,6 @@ class UsageEventCreate(BaseModel):
     reasoning_tokens: int = Field(default=0, ge=0)
     metadata_json: Optional[dict[str, Any]] = Field(default=None)
 
-@router.post("", status_code=status.HTTP_201_CREATED)
 
 @router.post("", status_code=status.HTTP_201_CREATED)
 async def ingest_usage_event(
