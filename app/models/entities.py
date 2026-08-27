@@ -112,8 +112,8 @@ class UsageEvent(Base):
     cost_microcents: Mapped[int] = mapped_column(
         BigInteger, default=0, nullable=False
     )
-    metadata_json: Mapped[dict[str, Any] | None] = mapped_column(
-        JSONB, nullable=False
+    metadata_json: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, default=dict
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, nullable=False, index=True

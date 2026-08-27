@@ -5,7 +5,7 @@ import httpx
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config import settings
+from app.core.config import settings, PlanTier
 from app.models.entities import Tenant, Subscription, WebhookLog
 
 
@@ -65,6 +65,7 @@ class FlutterwaveService:
             "client_id": settings.FLW_CLIENT_ID,
             "client_secret": settings.FLW_CLIENT_SECRET,
             "grant_type": "client_credentials",
+            "amount": settings.PRO_CHECKOUT_AMOUNT_USD,
         }
 
         async with httpx.AsyncClient(timeout=30) as client:
@@ -330,7 +331,7 @@ class FlutterwaveService:
         quota = self.PLAN_QUOTAS["pro"]
 
         if subscription:
-            subscription.plan_tier = "pro"
+            subscription.plan_tier = PlanTier.PRO.value
             subscription.status = "active"
             subscription.api_token_quota = quota
             subscription.api_call_quota = 10_000
@@ -338,7 +339,7 @@ class FlutterwaveService:
         else:
             subscription = Subscription(
                 tenant_id=tenant.id,
-                plan_tier="pro",
+                plan_tier=PlanTier.PRO.value,
                 status="active",
                 api_token_quota=quota,
                 api_call_quota=10_000,
@@ -387,7 +388,7 @@ class FlutterwaveService:
         if not subscription:
             return False, "Subscription not found"
 
-        subscription.plan_tier = "FREE"
+        subscription.plan_tier = PlanTier.FREE.value
         subscription.status = "canceled"
         subscription.api_token_quota = self.PLAN_QUOTAS["free"]
         subscription.api_call_quota = 1000

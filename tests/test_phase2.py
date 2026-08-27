@@ -34,7 +34,7 @@ async def test_double_count_prevention():
     success, status_code, msg = await service.record_usage(
         tenant_id,
         "evt_123",
-        tokens_used=500,
+        standard_input_tokens=500,
     )
 
     assert success is True
@@ -89,7 +89,7 @@ async def test_quota_exceeded_returns_402():
     success, status_code, msg = await service.record_usage(
         tenant,
         "evt_124",
-        tokens_used=200,
+        standard_input_tokens=200,
     )
 
     assert success is False

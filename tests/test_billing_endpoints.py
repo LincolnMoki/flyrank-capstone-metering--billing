@@ -1,6 +1,6 @@
 import uuid
 
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, patch, MagicMock
 
 import pytest
 
@@ -11,7 +11,15 @@ from app.db.session import get_db
 
 
 async def override_get_db():
+    mock_tenant = MagicMock()
+    mock_tenant.is_active = True
+
+    mock_result = MagicMock()
+    mock_result.scalar_one_or_none.return_value = mock_tenant
+
     mock_db = AsyncMock()
+    mock_db.execute.return_value = mock_result
+
     yield mock_db
 
 
@@ -28,7 +36,6 @@ async def test_create_checkout_endpoint_success():
     tenant_id = str(uuid.uuid4())
 
     payload = {
-        "tenant_id": tenant_id,
         "plan_id": "pro",
         "success_url": "https://example.com/success",
         "cancel_url": "https://example.com/cancel",
@@ -44,6 +51,7 @@ async def test_create_checkout_endpoint_success():
         new_callable=AsyncMock,
         return_value=mock_response,
     ):
+        
 
         transport = ASGITransport(app=app)
 
@@ -55,6 +63,7 @@ async def test_create_checkout_endpoint_success():
             response = await client.post(
                 "/api/v1/billing/checkout",
                 json=payload,
+                headers={"X-API-Key": "test-key"},
             )
 
     assert response.status_code == 200
@@ -125,11 +134,10 @@ async def test_flutterwave_webhook_endpoint_success():
 
 
 @pytest.mark.asyncio
-async def test_flutterwave_webhook_missing_signature_returns_401():
+async def test_flutterwave_webhook_missing_signature_returns_400():
     """
     Verify missing Flutterwave verif-hash is rejected.
     """
-
     payload = {
         "id": "flw_evt_test_101",
         "type": "charge.completed",
@@ -147,7 +155,7 @@ async def test_flutterwave_webhook_missing_signature_returns_401():
             json=payload,
         )
 
-    assert response.status_code == 401
+    assert response.status_code == 400
 
     assert (
         "Missing Flutterwave webhook signature"
@@ -156,11 +164,10 @@ async def test_flutterwave_webhook_missing_signature_returns_401():
 
 
 @pytest.mark.asyncio
-async def test_flutterwave_webhook_invalid_signature_returns_401():
+async def test_flutterwave_webhook_invalid_signature_returns_400():
     """
     Verify an invalid Flutterwave verif-hash is rejected.
     """
-
     headers = {
         "verif-hash": "invalid-hash",
     }
@@ -188,7 +195,7 @@ async def test_flutterwave_webhook_invalid_signature_returns_401():
                 headers=headers,
             )
 
-    assert response.status_code == 401
+    assert response.status_code == 400
 
     assert (
         "Invalid Flutterwave webhook signature"

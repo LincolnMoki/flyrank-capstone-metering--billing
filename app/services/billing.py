@@ -36,7 +36,6 @@ class BillingService:
         cached_input_tokens: int = 0,
         output_tokens: int = 0,
         reasoning_tokens: int = 0,
-        tokens_used: Optional[int] = None,
     ) -> Tuple[bool, int, str]:
         """
         Record one usage event after enforcing the tenant's monthly quotas.
@@ -53,15 +52,11 @@ class BillingService:
         # 1. Calculate total tokens
         # ---------------------------------------------------------
         total_tokens = (
-            tokens_used
-            if tokens_used is not None
-            else (
-                standard_input_tokens
-                + cached_input_tokens
-                + output_tokens
-                + reasoning_tokens
-            )
-        )
+            standard_input_tokens + cached_input_tokens + output_tokens + reasoning_tokens
+
+        ) 
+            
+        
 
         # Defensive validation for callers that bypass Pydantic.
         if total_tokens < 0:
@@ -106,9 +101,9 @@ class BillingService:
         # 4. Fetch subscription
         # ---------------------------------------------------------
         subscription_result = await self.db.execute(
-            select(Subscription).where(
-                Subscription.tenant_id == tenant_id
-            )
+            select(Subscription)
+            .where(Subscription.tenant_id == tenant_id)
+            .with_for_update()
         )
 
         subscription = subscription_result.scalar_one_or_none()

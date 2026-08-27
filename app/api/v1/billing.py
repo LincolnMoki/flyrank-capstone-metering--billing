@@ -8,13 +8,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.services.flutterwave_service import FlutterwaveService
 from app.db.session import get_db
-
+from fastapi.security import APIKeyHeader
+from sqlalchemy import select
+from app.models.entities import Tenant
 
 router = APIRouter()
 
-
+api_key_header = APIKeyHeader(name="X-API-Key", auto_error=True)
 class CheckoutRequest(BaseModel):
-    tenant_id: uuid.UUID
     plan_id: str
     success_url: str
     cancel_url: str
@@ -33,17 +34,24 @@ class CheckoutResponse(BaseModel):
 )
 async def create_checkout(
     payload: CheckoutRequest,
+    x_api_key: str = Depends(api_key_header),
     db: AsyncSession = Depends(get_db),
 ):
     """
     Create a Flutterwave hosted payment session.
     """
+    tenant_result = await db.execute(select(Tenant).where(Tenant.api_key == x_api_key))
+    tenant = tenant_result.scalar_one_or_none()
+    if not tenant:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tenant not found for provided API key")
+    if not tenant.is_active:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Tenant account is inactive")
 
     service = FlutterwaveService(db)
 
     try:
         return await service.create_checkout_session(
-            tenant_id=payload.tenant_id,
+            tenant_id=tenant.id,
             plan_id=payload.plan_id,
             success_url=payload.success_url,
             cancel_url=payload.cancel_url,
@@ -102,13 +110,13 @@ async def flutterwave_webhook(
 
     if not verif_hash:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
+            status_code=status.HTTP_400_BAD_REQUEST,
             detail="Missing Flutterwave webhook signature",
         )
 
     if verif_hash != settings.FLW_SECRET_HASH:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
+            status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid Flutterwave webhook signature",
         )
 

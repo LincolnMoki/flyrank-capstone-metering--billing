@@ -2,6 +2,7 @@ from enum import Enum
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
+PRO_CHECKOUT_AMOUNT_USD: int = 10
 class PlanTier(str, Enum):
     FREE = "FREE"
     PRO = "PRO"
@@ -47,6 +48,8 @@ def calculate_cost_microcents(
         reasoning_tokens: int,
 ) -> int:
     """Computes exact total request cost in micro-cents using 64-bit integer arithmetic."""
+    if any(t < 0 for t in (standard_input_tokens, cached_input_tokens, output_tokens, reasoning_tokens)):
+        raise ValueError("Token counts cannot be negative.")
     return(
         (standard_input_tokens * settings.RATE_STANDARD_INPUTS_MICROCENTS)
         +(cached_input_tokens * settings.RATE_CACHED_INPUT_MICROCENTS)

@@ -1,5 +1,7 @@
 from app.core.config import settings
+from app.core.config import calculate_cost_microcents as calculate_usage_cost
 
+__all__ = ["calculate_usage_cost"]
 def calculate_usage_cost(
     standard_input_tokens: int,
     cached_input_tokens: int,

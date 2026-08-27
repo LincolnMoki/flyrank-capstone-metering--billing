@@ -4,6 +4,7 @@ import sys
 from dotenv import load_dotenv
 
 load_dotenv()
+engine = create_async_engine(settings.async_database_url, echo=False)
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 

@@ -13,7 +13,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app.core.config import settings
 from app.db.session import Base
-from app.models.entities import Tenant
+from app.models.entities import Tenant, Subscription
 
 DEMO_TENANT_ID = uuid.UUID("00000000-0000-0000-0000-000000000001")
 
@@ -50,7 +50,29 @@ async def seed_demo_tenant():
             session.add(tenant)
             print(f"Created new demo tenant: {tenant.id}")
 
+        await session.flush()
+        sub_result = await session.execute(
+        select(Subscription).where(Subscription.tenant_id == DEMO_TENANT_ID)
+        )
+        subscription = sub_result.scalar_one_or_none()
+
+        if subscription:
+            subscription.plan_tier = "FREE"
+            subscription.status = "active"
+            subscription.api_call_quota = 10
+            subscription.api_token_quota = 1_000
+        else:
+            subscription = Subscription(
+                tenant_id=DEMO_TENANT_ID,
+                plan_tier="FREE",
+                status="active",
+                api_call_quota=10,
+                api_token_quota=1_000,
+            )
+            session.add(subscription)
+
         await session.commit()
+        print(f"Subscription: {subscription.plan_tier} | calls={subscription.api_call_quota} tokens={subscription.api_token_quota}")
 
         print("\n--- Demo Tenant Seeded Successfully ---")
         print(f"Tenant ID: {tenant.id}")

@@ -4,6 +4,7 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock
 
 from app.services.flutterwave_service import FlutterwaveService
+from app.core.config import  PlanTier
 
 
 @pytest.mark.asyncio
@@ -81,7 +82,7 @@ async def test_upgrade_resets_quota_at_boundary():
     # The newly-created Subscription receives the Pro quota.
     created_subscription = db.add.call_args.args[0]
 
-    assert created_subscription.plan_tier == "pro"
+    assert created_subscription.plan_tier == PlanTier.PRO.value
     assert created_subscription.api_token_quota == 10_000_000
 
     db.commit.assert_awaited_once()

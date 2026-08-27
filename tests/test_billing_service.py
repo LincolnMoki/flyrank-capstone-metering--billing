@@ -87,7 +87,7 @@ async def test_record_usage_idempotency_duplicate():
     success, status_code, message = await service.record_usage(
         tenant_id=tenant_id,
         idempotency_key="duplicate-key-456",
-        tokens_used=500,
+        standard_input_tokens=500,
     )
 
     assert success is True
@@ -139,7 +139,7 @@ async def test_record_usage_token_quota_exceeded():
     success, status_code, message = await service.record_usage(
         tenant_id=tenant.id,
         idempotency_key="token-quota-test",
-        tokens_used=200,
+        standard_input_tokens=200,
     )
 
     assert success is False
@@ -193,7 +193,7 @@ async def test_record_usage_api_call_quota_exceeded():
     success, status_code, message = await service.record_usage(
         tenant_id=tenant.id,
         idempotency_key="call-quota-test",
-        tokens_used=100,
+        standard_input_tokens=100,
     )
 
     assert success is False
@@ -245,7 +245,7 @@ async def test_record_usage_allows_request_at_quota_boundary():
     success, status_code, message = await service.record_usage(
         tenant_id=tenant.id,
         idempotency_key="boundary-test",
-        tokens_used=100,
+        standard_input_tokens=100,
     )
 
     assert success is True
@@ -299,7 +299,8 @@ async def test_api_call_quota_under_limit_returns_201():
     success, status_code, message = await service.record_usage(
         tenant_id=tenant.id,
         idempotency_key="api-call-under-limit",
-        tokens_used=100,
+        standard_input_tokens=100,
+
     )
 
     assert success is True
@@ -360,7 +361,7 @@ async def test_api_call_quota_exact_boundary_returns_201():
     success, status_code, message = await service.record_usage(
         tenant_id=tenant.id,
         idempotency_key="api-call-exact-boundary",
-        tokens_used=100,
+        standard_input_tokens=100,
     )
 
     assert success is True
@@ -415,7 +416,7 @@ async def test_api_call_quota_exceeded_returns_402():
     success, status_code, message = await service.record_usage(
         tenant_id=tenant.id,
         idempotency_key="api-call-over-limit",
-        tokens_used=100,
+        standard_input_tokens=100,
     )
 
     assert success is False
@@ -474,7 +475,7 @@ async def test_api_call_and_token_quotas_are_independently_enforced():
     success, status_code, message = await service.record_usage(
         tenant_id=tenant.id,
         idempotency_key="token-limit-independent",
-        tokens_used=100,
+        standard_input_tokens=100,
     )
 
     assert success is False
@@ -529,7 +530,7 @@ async def test_token_quota_available_but_api_call_quota_exceeded():
     success, status_code, message = await service.record_usage(
         tenant_id=tenant.id,
         idempotency_key="call-limit-independent",
-        tokens_used=100,
+        standard_input_tokens=100,
     )
 
     assert success is False
