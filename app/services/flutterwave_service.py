@@ -76,7 +76,11 @@ class FlutterwaveService:
                 },
             )
 
-        response.raise_for_status()
+        if response.is_error:
+            raise ValueError(
+                f"Flutterwave checkout error "
+                f"{response.status_code}: {response.text}"
+            )
 
         data = response.json()
         access_token = data.get("access_token")
@@ -115,7 +119,11 @@ class FlutterwaveService:
                 },
             )
 
-        response.raise_for_status()
+        if response.is_error:
+            raise ValueError(
+                f"Flutterwave checkout error "
+                f"{response.status_code}: {response.text}"
+            )
 
         data = response.json()
 
@@ -139,7 +147,7 @@ class FlutterwaveService:
         plan_id: str,
         success_url: str,
         cancel_url: str,
-    ) -> dict[str, str]:
+        ) -> dict[str, str]:
 
         tenant_result = await self.db.execute(
             select(Tenant).where(Tenant.id == tenant_id)
@@ -163,7 +171,6 @@ class FlutterwaveService:
 
         access_token = await self._get_access_token()
 
-        # Reuse the Flutterwave customer when we already have one.
         customer_id = (
             str(subscription.flutterwave_customer_id)
             if subscription
@@ -181,10 +188,10 @@ class FlutterwaveService:
                 subscription.flutterwave_customer_id = customer_id
                 await self.db.commit()
 
-        reference = f"flyrank-pro-{uuid.uuid4()}"
+        reference = f"flyrank-pro-{uuid.uuid4().hex[:20]}"
 
         payload = {
-            "amount": 10.00,
+            "amount": 10,
             "currency": "USD",
             "customer_id": customer_id,
             "redirect_url": success_url,
@@ -207,7 +214,11 @@ class FlutterwaveService:
                 headers=headers,
             )
 
-        response.raise_for_status()
+        if response.is_error:
+            raise ValueError(
+                f"Flutterwave checkout error "
+                f"{response.status_code}: {response.text}"
+            )
 
         data = response.json()
 
@@ -217,21 +228,25 @@ class FlutterwaveService:
             )
 
         checkout_data = data.get("data", {})
-        checkout_url = checkout_data.get("checkout_url")
 
-        if not checkout_url:
+        session_id = checkout_data.get("id")
+        provider_redirect_url = checkout_data.get("redirect_url")
+
+        if not session_id:
             raise ValueError(
-                "Flutterwave checkout response missing checkout_url"
+                "Flutterwave checkout response missing session id"
             )
 
-        # cancel_url is retained by our application contract. Flutterwave's
-        # v4 checkout-session endpoint does not expose a cancel_url field.
-        _ = cancel_url
+        if not provider_redirect_url:
+            raise ValueError(
+                "Flutterwave checkout response missing redirect URL"
+            )
 
         return {
-            "session_id": str(checkout_data.get("id", reference)),
-            "checkout_url": checkout_url,
+            "session_id": str(session_id),
+            "checkout_url": str(provider_redirect_url),
         }
+
 
     async def handle_webhook_event(
         self,

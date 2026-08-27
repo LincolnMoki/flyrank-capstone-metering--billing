@@ -17,7 +17,7 @@ class Settings(BaseSettings):
     REDIS_HOST: str = "localhost"
     REDIS_PORT: int = 6379
 
-    FLW_CLIENT_SECRET: str = ""
+    
     FLW_CLIENT_ID: str = ""
     FLW_CLIENT_SECRET: str = ""
     FLW_ENCRYPTION_KEY: str = ""
