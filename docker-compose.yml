@@ -33,7 +33,7 @@ services:
 
   migrate:
     build: .
-    command: python scripts/init_db.py
+    command: alembic upgrade head
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}

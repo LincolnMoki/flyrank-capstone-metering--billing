@@ -16,7 +16,7 @@ def test_microcents_math():
     assert isinstance(cost, int)
 
 def test_entity_instantiation():
-    tenant_id = uuid.uuid4
+    tenant_id = uuid.uuid4()
     tenant = Tenant(
         id=tenant_id,
         name="Smile Clinic",
